@@ -1,0 +1,73 @@
+# Sistema
+.DS_Store
+Thumbs.db
+*.swp
+*~
+
+# Entornos y secretos
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+credentials.json
+secrets/
+
+# Python / notebooks si aparecen scripts de limpieza
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.ipynb_checkpoints/
+
+# Rust local (este repo no es el crate, pero por si acaso)
+/target/
+
+# Artefactos de datos — no pertenecen a git
+*.bin
+*.idx
+*.npy
+*.npz
+*.pt
+*.pth
+*.safetensors
+*.gguf
+*.onnx
+*.arrow
+*.feather
+*.parquet
+*.orc
+*.avro
+*.tfrecord
+*.tar
+*.tar.*
+*.tgz
+*.zip
+*.7z
+*.rar
+*.gz
+*.bz2
+*.xz
+*.zst
+*.lz4
+*.jsonl
+*.ndjson
+*.csv
+*.tsv
+*.sqlite
+*.db
+
+# Excepciones: manifiestos y muestras pequeñas
+!manifests/**/*.json
+!manifests/**/*.yaml
+!manifests/**/*.yml
+!samples/**/*.txt
+!samples/**/*.json
+!samples/**/*.jsonl
+
+# Checkpoints y salidas de entrenamiento
+*.ckpt
+auralis.bin
+checkpoints/
+runs/
+wander/
