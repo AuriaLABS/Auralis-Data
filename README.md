@@ -1,90 +1,90 @@
 # Auralis-Data
 
-Repositorio de **datos** del proyecto [Auralis](https://github.com/AuriaLABS/Auralis) (AuriaLABS).
+**Data** repository for [Auralis](https://github.com/AuriaLABS/Auralis) (AuriaLABS).
 
-Auralis es el modelo: tokenizador, transformer, entrenamiento e inferencia en Rust.
-Auralis-Data es la fábrica de corpora: procedencia, limpieza, mezclas, licencias y manifiestos versionados.
+Auralis is the model: tokenizer, transformer, training, and inference in Rust.
+Auralis-Data is the corpus factory: provenance, cleaning, mixes, licenses, and versioned manifests.
 
-> El código no guarda el corpus real. El corpus no entrena el modelo por sí solo.
-> Cada fuente entra con licencia, checksum y una ficha que se pueda auditar.
+> The code repo does not hold the real corpus. The corpus does not train the model by itself.
+> Every source lands with a license, a checksum, and a card that can be audited.
 
-## Estado
+## Status
 
-Fase de arranque. Este repositorio acaba de inicializarse. Todavía no hay shards de preentrenamiento ni mezclas cerradas.
+Bootstrap phase. The repository layout exists; there are no pretraining shards or frozen mixes yet.
 
-El archivo `data/corpus.txt` que vive en el repo de Auralis es un **fixture de desarrollo**: unas pocas frases en castellano para cerrar el ciclo Genesis (entrenar, guardar checkpoint, generar texto). No es el dataset de entrenamiento.
+`data/corpus.txt` in the Auralis repo is a **development fixture**: a few Spanish sentences used to close the Genesis loop (train, save a checkpoint, generate text). It is not the training dataset.
 
-Idioma de trabajo de la documentación y de los metadatos: **español**. El corpus objetivo es castellano en primer término, con inglés y código cuando una mezcla lo justifique.
+Documentation and metadata are in **English**. The primary pretraining target is Spanish, with English and code added when a mix justifies the weight.
 
-## Qué sí entra aquí
+## What belongs here
 
-- Fichas de dataset (origen, idioma, licencia, fecha de corte, sesgos conocidos).
-- Manifiestos de mezcla: qué fuentes, qué peso, qué split.
-- Recetas de limpieza y criterios de rechazo.
-- Checksums (`SHA-256`) de artefactos versionados.
-- Textos de licencia por fuente.
-- Muestras pequeñas y conjuntos de evaluación que quepan en git.
-- Scripts o notas que documenten cómo se construyó un artefacto.
+- Dataset cards (origin, language, license, cutoff date, known biases).
+- Mix manifests: which sources, which weight, which split.
+- Cleaning recipes and reject criteria.
+- Checksums (`SHA-256`) of versioned artifacts.
+- Per-source license texts.
+- Small samples and evaluation sets that fit in git.
+- Scripts or notes that document how an artifact was built.
 
-## Qué no entra en git
+## What does not belong in git
 
-- Dumps de crawl, `.parquet` / `.arrow` / `.jsonl` masivos, tarballs, shards tokenizados (`.bin`, `.idx`).
-- Checkpoints del modelo (`auralis.bin` y equivalentes).
-- Secretos, cookies, credenciales o texto con PII sin redactar.
+- Crawl dumps, massive `.parquet` / `.arrow` / `.jsonl`, tarballs, tokenized shards (`.bin`, `.idx`).
+- Model checkpoints (`auralis.bin` and equivalents).
+- Secrets, cookies, credentials, or unredacted PII.
 
-Esos artefactos viven fuera (almacenamiento de objetos o disco de entrenamiento). Aquí solo queda el puntero: URI, tamaño, checksum y ficha.
+Those artifacts live elsewhere (object storage or a training disk). This repo keeps the pointer: URI, size, checksum, and card.
 
-Esto no es un capricho de repo limpio. GitHub no es un datalake; un push de decenas de gigas rompe clones, CI y el histórico. Auralis 0.2 pide «datasets mayores y pipeline de datos»; ese pipeline debe ser reproducible sin clonar terabytes.
+That is not repo aesthetics. GitHub is not a data lake; multi-gigabyte pushes break clones, CI, and history. Auralis 0.2 calls for larger datasets and a data pipeline; that pipeline must be reproducible without cloning terabytes.
 
-## Estructura
+## Layout
 
 ```text
 Auralis-Data/
-  README.md                 este archivo
-  LICENSE                   licencia del andamiaje del repo (no de cada corpus)
+  README.md                 this file
+  LICENSE                   license for repo scaffolding (not for each corpus)
   docs/
-    politica.md             reglas de aceptación, PII, atribución
-    ficha.plantilla.md      plantilla de ficha de dataset
-  manifests/                mezclas y listados versionados (JSON/YAML)
-  licenses/                 textos o extractos de licencia por fuente
-  checksums/                SHA-256 de artefactos publicados
-  samples/                  recortes mínimos para pruebas y CI
-  raw/                      notas de procedencia; no el dump
-  processed/                notas del corpus limpio; no los shards
-  mixes/                    recetas de mezcla train/val/test
+    policy.md               acceptance rules, PII, attribution
+    card.template.md        dataset-card template
+  manifests/                versioned mixes and inventories (JSON/YAML)
+  licenses/                 per-source license texts or excerpts
+  checksums/                SHA-256 of published artifacts
+  samples/                  tiny clips for tests and CI
+  raw/                      provenance notes; not the dump
+  processed/                notes on the cleaned corpus; not the shards
+  mixes/                    train/val/test mix recipes
 ```
 
-Las carpetas `raw/`, `processed/` y `mixes/` guardan **descripciones y punteros**, no el binario. Si un archivo supera unos pocos megabytes, no pertenece a git.
+`raw/`, `processed/`, and `mixes/` hold **descriptions and pointers**, not binaries. If a file is more than a few megabytes, it does not belong in git.
 
-## Relación con Auralis
+## Relationship to Auralis
 
-| Pieza | Dónde | Rol |
+| Piece | Where | Role |
 | --- | --- | --- |
-| Motor, tokenizador, train/eval/chat | [AuriaLABS/Auralis](https://github.com/AuriaLABS/Auralis) | código |
-| Fixture `data/corpus.txt` | repo Auralis | humo / Genesis |
-| Corpora, mixes, fichas | este repo | datos |
-| Checkpoints | fuera de ambos repos | artefactos de entrenamiento |
+| Engine, tokenizer, train/eval/chat | [AuriaLABS/Auralis](https://github.com/AuriaLABS/Auralis) | code |
+| Fixture `data/corpus.txt` | Auralis repo | smoke / Genesis |
+| Corpora, mixes, cards | this repo | data |
+| Checkpoints | outside both repos | training artifacts |
 
-Cuando exista la primera mezcla usable, Auralis deberá referenciarla por **nombre + versión + checksum**, no por «un archivo que alguien dejó en disco».
+When the first usable mix exists, Auralis should reference it by **name + version + checksum**, not by “a file someone left on disk.”
 
-Encaja con la hoja de ruta de Auralis:
+This tracks the Auralis roadmap:
 
-- **0.1 Genesis** — ciclo sobre un corpus mínimo (ya cubierto por el fixture).
-- **0.2 Foundation** — datasets mayores, splits train/val/test, perplexity.
-- **0.7 Multimodal** — datasets multimodales versionados, más adelante.
+- **0.1 Genesis** — loop on a tiny corpus (already covered by the fixture).
+- **0.2 Foundation** — larger datasets, train/val/test splits, perplexity.
+- **0.7 Multimodal** — versioned multimodal datasets, later.
 
-## Cómo añadir una fuente
+## Adding a source
 
-1. Copiar `docs/ficha.plantilla.md` a `docs/fuentes/<id>.md`.
-2. Dejar constancia de URL o identificador estable, fecha de descarga, licencia y restricciones.
-3. Si el artefacto es grande, publicar checksum en `checksums/` y la URI en el manifiesto. No subir el blob.
-4. Si forma parte de una mezcla, editar `manifests/` y `mixes/` en el mismo cambio.
-5. Toda fuente sin licencia clara o con PII evidente se queda fuera hasta resolverlo.
+1. Copy `docs/card.template.md` to `docs/sources/<id>.md`.
+2. Record a stable URL or identifier, download date, license, and restrictions.
+3. If the artifact is large, publish the checksum under `checksums/` and the URI in the manifest. Do not upload the blob.
+4. If it belongs in a mix, edit `manifests/` and `mixes/` in the same change.
+5. Any source without a clear license, or with obvious PII, stays out until that is resolved.
 
-Detalle normativo: [docs/politica.md](docs/politica.md).
+Policy detail: [docs/policy.md](docs/policy.md).
 
-## Licencia de este repositorio
+## Repository license
 
-El andamiaje (documentación, plantillas, manifiestos vacíos, scripts que se añadan) se publica bajo [MIT](LICENSE), igual que Auralis.
+Scaffolding (documentation, templates, empty manifests, future scripts) is [MIT](LICENSE), same as Auralis.
 
-**Eso no cubre los datasets.** Cada fuente conserva su licencia original. Entrenar o redistribuir un corpus exige leer `licenses/` y la ficha correspondiente. Mezclar fuentes no crea una licencia nueva ni borra las anteriores.
+**That does not cover the datasets.** Each source keeps its original license. Training on or redistributing a corpus requires reading `licenses/` and the matching card. Mixing sources does not create a new license or erase the old ones.
