@@ -44,6 +44,7 @@ Auralis-Data/
   LICENSE                   license for repo scaffolding (not for each corpus)
   docs/
     policy.md               acceptance rules, PII, attribution
+    cleaning.md             Spanish-first cleaning pipeline
     card.template.md        dataset-card template
   manifests/                versioned mixes and inventories (JSON/YAML)
   licenses/                 per-source license texts or excerpts
@@ -81,7 +82,8 @@ This tracks the Auralis roadmap:
 4. If it belongs in a mix, edit `manifests/` and `mixes/` in the same change.
 5. Any source without a clear license, or with obvious PII, stays out until that is resolved.
 
-Policy detail: [docs/policy.md](docs/policy.md).
+Policy: [docs/policy.md](docs/policy.md).  
+Cleaning recipe: [docs/cleaning.md](docs/cleaning.md).
 
 ## Repository license
 
