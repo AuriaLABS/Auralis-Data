@@ -1,0 +1,10 @@
+FineWeb-2 (HuggingFaceFW/fineweb-2) is released under the Open Data Commons
+Attribution License (ODC-By) v1.0.
+
+Full text: https://opendatacommons.org/licenses/by/1.0/
+Common Crawl Terms of Use also apply to the underlying WARC origin:
+https://commoncrawl.org/terms-of-use
+
+Attribution for a model trained on a spa_Latn slice must name FineWeb-2
+and ODC-By. Do not copy the full license deed into git unless legal asks
+for a frozen snapshot.
