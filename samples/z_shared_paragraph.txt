@@ -1,0 +1,3 @@
+La feria del libro de Medellín abre al mediodía y las casetas se llenan de gente que busca novelas, ensayos y cuadernos. Un vendedor explica el precio de una edición usada y otra persona pregunta si hay poesía colombiana cerca de la entrada principal.
+
+Auralis es un motor cognitivo escrito en Rust. El modelo aprende a predecir el siguiente token a partir del contexto y no depende de un marco ajeno para el ciclo de entrenamiento.
