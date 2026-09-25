@@ -1,0 +1,3 @@
+En la oficina de Cádiz alguien dejó una nota con el correo ana.prueba@example.com y pidió transferencia al IBAN ES9121000418450200051332. El número de móvil era +34 612 345 678 y el documento 00000000T no debía circular por correo.
+
+El resto del aviso habla de plazos, de la mesa de entrada y de cómo presentar un escrito sin adjuntar datos personales otra vez. Hay tildes y eñes de sobra para que el filtro de ortografía no tire el texto. Esta muestra existe solo para comprobar que el pipeline sustituye esos valores por placeholders y deja el documento en el corpus limpio.
