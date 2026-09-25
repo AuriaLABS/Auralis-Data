@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Assert clean-es-v0.2.0 reason codes on samples/."""
+"""Assert clean-es-v0.3.0 reason codes, PII redaction, and splits."""
 
 from pathlib import Path
 import sys
@@ -7,10 +7,12 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from clean_es import apply_exact_dedup, clean_document
+from redact import redact_pii
 
 SAMPLES = ROOT / "samples"
 SINGLE = {
     "keep_prose.txt": "ok",
+    "keep_pii.txt": "ok",
     "reject_banners.txt": "boilerplate",
     "reject_portuguese.txt": "not_spanish",
     "reject_ascii.txt": "no_spanish_orthography",
@@ -26,6 +28,33 @@ def main() -> int:
         mark = "ok" if got == want else "FAIL"
         print(f"{mark:4} {name:28} want={want:24} got={got}")
         failed += got != want
+
+    pii = clean_document((SAMPLES / "keep_pii.txt").read_text(encoding="utf-8"), "web")
+    for token in ("<EMAIL>", "<IBAN>", "<PHONE>", "<ID>"):
+        ok = token in pii["text"]
+        print(f"{'ok' if ok else 'FAIL':4} pii has {token}")
+        failed += not ok
+    raw_left = any(s in pii["text"] for s in ("example.com", "ES9121", "+34 612", "00000000T"))
+    print(f"{'FAIL' if raw_left else 'ok':4} raw PII stripped")
+    failed += raw_left
+    if set(pii["pii"]) != {"email", "iban", "phone", "id"}:
+        print("FAIL pii tags", pii["pii"])
+        failed += 1
+    else:
+        print("ok   pii tags")
+
+    redacted, _ = redact_pii("codigo 12345678A y 00000000T")
+    if "12345678A" not in redacted or "<ID>" not in redacted:
+        print("FAIL invalid DNI handling", redacted)
+        failed += 1
+    else:
+        print("ok   invalid DNI kept")
+
+    if pii["split"] not in {"train", "validation", "test"}:
+        print("FAIL split", pii["split"])
+        failed += 1
+    else:
+        print("ok   split", pii["split"])
 
     batch_names = ["keep_prose.txt", "z_dup_keep_prose.txt", "z_shared_paragraph.txt"]
     recs = []
