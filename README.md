@@ -2,46 +2,34 @@
 
 **Data** repository for [Auralis](https://github.com/AuriaLABS/Auralis) (AuriaLABS).
 
-Auralis is the model: tokenizer, transformer, training, and inference in Rust.
-Auralis-Data is the corpus factory: provenance, cleaning, mixes, licenses, and versioned manifests.
+Auralis is the model. Auralis-Data is the corpus factory: provenance, cleaning, mixes, licenses, manifests.
 
-> The code repo does not hold the real corpus. The corpus does not train the model by itself.
-> Every source lands with a license, a checksum, and a card that can be audited.
+Documentation is in **English**. Conversation about the project may be in Spanish. The pretraining target is Spanish.
 
 ## Status
 
-Bootstrap phase. Layout, policy, cleaning contract, and a stdlib cleaner for stages 2–5 exist. There are no pretraining shards or frozen mixes yet.
+- Cleaner: `clean-es-v0.3.0` (`scripts/clean_es.py`, `scripts/redact.py`).
+- First mix: [`manifests/genesis-mix-v0.1.0.yaml`](manifests/genesis-mix-v0.1.0.yaml) (smoke samples only).
+- Source cards: [`docs/sources/`](docs/sources/). No external shard has a checksum yet.
 
-`data/corpus.txt` in the Auralis repo is a **development fixture**: a few Spanish sentences used to close the Genesis loop. It is not the training dataset.
-
-Documentation and metadata are in **English**. The primary pretraining target is Spanish.
-
-## Run the cleaner
+## Run
 
 ```bash
 python3 scripts/clean_es.py samples/
 python3 scripts/test_clean_es.py
 ```
 
-Recipe id: `clean-es-v0.1.0`. Contract: [docs/cleaning.md](docs/cleaning.md).
+## Sources (decisions)
 
-## Layout
+| Source | Status |
+| --- | --- |
+| PleIAs Spanish-PD-Books | accepted |
+| Spanish Wikipedia | accepted |
+| FineWeb-2 `spa_Latn` | candidate (Foundation) |
+| PleIAs Spanish-PD-Newspapers | candidate |
+| CEREAL | quarantine (labels vs OSCAR text) |
+| esCorpius | rejected (CC BY-NC-ND) |
 
-```text
-Auralis-Data/
-  README.md
-  LICENSE
-  docs/           policy, cleaning contract, card template
-  scripts/        clean_es.py (stages 2–5) and fixture tests
-  samples/        tiny keep/reject clips for the cleaner
-  manifests/      versioned mixes (empty)
-  licenses/
-  checksums/
-  raw/ processed/ mixes/
-```
-
-Policy: [docs/policy.md](docs/policy.md).
-
-## Repository license
+Policy: [docs/policy.md](docs/policy.md). Cleaning: [docs/cleaning.md](docs/cleaning.md).
 
 Scaffolding is [MIT](LICENSE). Datasets keep their original licenses.
