@@ -1,0 +1,5 @@
+Auralis es un motor cognitivo escrito en Rust. El modelo aprende a predecir el siguiente token a partir del contexto y no depende de un marco ajeno para el ciclo de entrenamiento.
+
+El diseño actual es un transformer decoder-only con atención causal. Auralis tokeniza el texto, calcula la pérdida, propaga el error y actualiza los pesos con Adam. Un checkpoint guarda también el estado del optimizador para poder reanudar sin perder el paso.
+
+Este párrafo existe para las pruebas del pipeline de limpieza: tiene tildes, eñes y suficientes palabras funcionales del castellano. No es un corpus de preentrenamiento. Es una muestra pequeña que debe sobrevivir a los filtros web de clean-es-v0.1.0 cuando el perfil es web o books.
