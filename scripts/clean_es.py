@@ -1,18 +1,17 @@
 #!/usr/bin/env python3
-"""clean-es-v0.1.0 — stages 2–5 of docs/cleaning.md (stdlib only).
+"""clean-es-v0.2.0 — stages 2–6 and exact dedup (8) of docs/cleaning.md.
 
-Normalize, heuristic language gate, fast-reject, Spanish boilerplate.
-Optional fastText/GlotLID can wrap this later; the reason codes stay stable.
+Standard library only. Reason codes stay stable when GlotLID or MinHash wrap this.
 
 Usage:
   python3 scripts/clean_es.py samples/
-  python3 scripts/clean_es.py --profile books path/to/file.txt
-  python3 scripts/clean_es.py --jsonl-out /tmp/kept.jsonl samples/
+  python3 scripts/test_clean_es.py
 """
 
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import sys
@@ -20,7 +19,7 @@ import unicodedata
 from collections import Counter
 from pathlib import Path
 
-RECIPE = "clean-es-v0.1.0"
+RECIPE = "clean-es-v0.2.0"
 
 ES_STOP = frozenset(
     "de la que el en y a los se del las un por con no una su para es al lo como más pero sus le ha me si ya o este entre cuando muy sin sobre también hasta hay desde está mi porque esta son nos así".split()
@@ -65,6 +64,10 @@ BANNER_RES = [
 URL_RE = re.compile(r"https?://\S+", re.IGNORECASE)
 WORD_RE = re.compile(r"\S+")
 CTRL_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f]")
+PUNCT_RE = re.compile(r"[^\wáéíóúüñÁÉÍÓÚÜÑ]+", re.UNICODE)
+
+GOPHER_TOP = ((2, 0.20), (3, 0.18), (4, 0.16))
+GOPHER_DUP = ((5, 0.15), (6, 0.14), (7, 0.13), (8, 0.12), (9, 0.11), (10, 0.10))
 
 
 def normalize(text: str) -> str:
@@ -79,9 +82,12 @@ def words(text: str) -> list[str]:
     return WORD_RE.findall(text)
 
 
+def tokens_norm(text: str) -> list[str]:
+    return [t for t in PUNCT_RE.sub(" ", text.lower()).split() if t]
+
+
 def strip_banners(text: str) -> tuple[str, int]:
-    kept = []
-    dropped = 0
+    kept, dropped = [], 0
     for line in text.split("\n"):
         if any(rx.search(line) for rx in BANNER_RES):
             dropped += 1
@@ -91,7 +97,7 @@ def strip_banners(text: str) -> tuple[str, int]:
 
 
 def heuristic_lang(text: str) -> tuple[str, dict]:
-    tokens = [w.strip("..,;:¡!¿?\"'«»()[]").lower() for w in words(text)]
+    tokens = [w.strip(".,;:¡!¿?\"'«»()[]").lower() for w in words(text)]
     if not tokens:
         return "und", {"es": 0.0, "pt": 0.0, "ca": 0.0, "gl": 0.0}
     n = len(tokens)
@@ -118,40 +124,97 @@ def fast_reject(text: str, profile: str) -> str | None:
         return "too_short"
     if n > hi:
         return "too_long"
-
     letters = [ch for ch in text if ch.isalpha()]
     if not letters:
         return "low_alpha"
-    mean_len = sum(len(t.strip("..,;:¡!¿?")) for t in w) / n
+    mean_len = sum(len(t.strip(".,;:¡!¿?")) for t in w) / n
     wlo, whi = (2, 18) if profile == "books" else (3, 12)
     if not (wlo <= mean_len <= whi):
         return "wordlen"
-
     alpha = sum(ch.isalpha() for ch in text) / max(len(text), 1)
     if alpha < (0.55 if profile == "books" else 0.70):
         return "low_alpha"
     digit = sum(ch.isdigit() for ch in text) / max(len(text), 1)
     if digit > (0.30 if profile == "books" else 0.20):
         return "high_digit"
-
     url_n = len(URL_RE.findall(text))
     if n and url_n / n > (0.02 if profile == "books" else 0.05):
         return "high_url"
     if text.count("\ufffd") > (5 if profile == "books" else 0):
         return "bad_ocr"
-
     upper = sum(ch.isupper() for ch in letters) / len(letters)
     if upper > (0.50 if profile == "books" else 0.40):
         return "screaming"
-
     if profile == "web" and len(text) >= 400:
         if not re.search(r"[áéíóúñÁÉÍÓÚÑ]", text) and not text.isupper():
             return "no_spanish_orthography"
-
-    low = [t.strip("..,;:¡!¿?\"").lower() for t in w]
+    low = [t.strip(".,;:¡!¿?\"").lower() for t in w]
     if sum(t in ES_STOP for t in low) < 3:
         return "no_stopwords"
     return None
+
+
+def _ngrams(toks: list[str], n: int) -> list[tuple[str, ...]]:
+    if len(toks) < n:
+        return []
+    return [tuple(toks[i : i + n]) for i in range(len(toks) - n + 1)]
+
+
+def _gram_char_weight(gram: tuple[str, ...]) -> int:
+    return sum(len(w) for w in gram) + max(len(gram) - 1, 0)
+
+
+def repetition_reject(text: str) -> str | None:
+    lines = [ln.strip() for ln in text.split("\n") if ln.strip()]
+    if len(lines) >= 4:
+        counts = Counter(lines)
+        dup_lines = sum(c for ln, c in counts.items() if c > 1)
+        if dup_lines / len(lines) > 0.30:
+            return "dup_line"
+        total_c = sum(len(ln) for ln in lines)
+        dup_c = sum(len(ln) * c for ln, c in counts.items() if c > 1)
+        if total_c and dup_c / total_c > 0.20:
+            return "dup_line"
+
+    toks = tokens_norm(text)
+    total_c = sum(len(t) for t in toks) + max(len(toks) - 1, 0)
+    if total_c == 0:
+        return None
+    for n, thr in GOPHER_TOP:
+        grams = _ngrams(toks, n)
+        if not grams:
+            continue
+        gram, cnt = Counter(grams).most_common(1)[0]
+        if cnt * _gram_char_weight(gram) / total_c > thr:
+            return "dup_ngram"
+    for n, thr in GOPHER_DUP:
+        grams = _ngrams(toks, n)
+        if not grams:
+            continue
+        counts = Counter(grams)
+        covered = 0
+        for g, cnt in counts.items():
+            if cnt > 1:
+                covered += (cnt - 1) * _gram_char_weight(g)
+        if covered / total_c > thr:
+            return "dup_ngram"
+    return None
+
+
+def doc_hash(text: str) -> str:
+    squeezed = re.sub(r"\s+", " ", unicodedata.normalize("NFC", text)).strip()
+    return hashlib.sha256(squeezed.encode("utf-8")).hexdigest()
+
+
+def paragraphs(text: str) -> list[str]:
+    parts = [p.strip() for p in re.split(r"\n\s*\n", text) if p.strip()]
+    return parts if parts else [text.strip()]
+
+
+def para_hash(text: str) -> str:
+    norm = PUNCT_RE.sub(" ", text.lower())
+    norm = re.sub(r"\s+", " ", norm).strip()
+    return hashlib.sha256(norm.encode("utf-8")).hexdigest()
 
 
 def clean_document(text: str, profile: str = "web") -> dict:
@@ -174,6 +237,10 @@ def clean_document(text: str, profile: str = "web") -> dict:
     if label in {"ca", "gl"} and scores[label] >= scores.get("es", 0) + 0.02:
         return {"keep": False, "reason": "lang_ambiguous", "lang": label, "scores": scores, "text": text, "recipe": RECIPE}
 
+    reason = repetition_reject(text)
+    if reason:
+        return {"keep": False, "reason": reason, "lang": label, "text": text, "recipe": RECIPE}
+
     return {
         "keep": True,
         "reason": "ok",
@@ -182,9 +249,39 @@ def clean_document(text: str, profile: str = "web") -> dict:
         "banners": n_banner,
         "n_words": len(words(text)),
         "text": text,
+        "doc_hash": doc_hash(text),
+        "para_hashes": [para_hash(p) for p in paragraphs(text) if len(p) >= 40],
         "recipe": RECIPE,
         "input_chars": len(raw),
     }
+
+
+def apply_exact_dedup(records: list[dict]) -> list[dict]:
+    seen_docs: set[str] = set()
+    seen_paras: set[str] = set()
+    out = []
+    for rec in records:
+        if not rec.get("keep"):
+            out.append(rec)
+            continue
+        dh = rec["doc_hash"]
+        if dh in seen_docs:
+            rec = dict(rec)
+            rec["keep"] = False
+            rec["reason"] = "dup_doc"
+            out.append(rec)
+            continue
+        phs = rec.get("para_hashes") or []
+        if any(p in seen_paras for p in phs):
+            rec = dict(rec)
+            rec["keep"] = False
+            rec["reason"] = "dup_paragraph"
+            out.append(rec)
+            continue
+        seen_docs.add(dh)
+        seen_paras.update(phs)
+        out.append(rec)
+    return out
 
 
 def iter_inputs(paths: list[Path]) -> list[tuple[str, str]]:
@@ -210,19 +307,30 @@ def main() -> int:
     ap.add_argument("--jsonl-out", type=Path)
     args = ap.parse_args()
 
+    raw_recs = []
+    for name, raw in iter_inputs(args.paths):
+        rec = clean_document(raw, args.profile)
+        rec["path"] = name
+        raw_recs.append(rec)
+    recs = apply_exact_dedup(raw_recs)
+
     hist: Counter[str] = Counter()
     kept = 0
     out_f = args.jsonl_out.open("w", encoding="utf-8") if args.jsonl_out else None
     try:
-        for name, raw in iter_inputs(args.paths):
-            rec = clean_document(raw, args.profile)
-            rec["path"] = name
+        for rec in recs:
             hist[rec["reason"]] += 1
             if rec["keep"]:
                 kept += 1
-            print(f"{rec['reason']:24} {name}")
+            print(f"{rec['reason']:24} {rec['path']}")
             if out_f and rec["keep"]:
-                out_f.write(json.dumps({"id": name, "text": rec["text"], "recipe": RECIPE}, ensure_ascii=False) + "\n")
+                out_f.write(
+                    json.dumps(
+                        {"id": rec["path"], "text": rec["text"], "recipe": RECIPE, "doc_hash": rec.get("doc_hash")},
+                        ensure_ascii=False,
+                    )
+                    + "\n"
+                )
     finally:
         if out_f:
             out_f.close()
