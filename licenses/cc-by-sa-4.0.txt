@@ -1,0 +1,5 @@
+Spanish Wikipedia dumps are licensed CC BY-SA 4.0 (with GFDL for some older
+revisions). Full deed: https://creativecommons.org/licenses/by-sa/4.0/
+
+Attribute Wikimedia contributors. Share-alike applies to adapted text.
+This pointer is not a dump and not a relicensed corpus.
