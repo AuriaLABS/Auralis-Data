@@ -2,6 +2,8 @@
 
 Versioned inventories of sources and mixes.
 
-A manifest is a small JSON or YAML file. It names sources, splits, weights, and the checksum of the artifact those weights produce. Changing any of those fields is a new version, not an edit in place.
+Current:
 
-No mix is frozen yet. Add files here when the first source is accepted.
+- [`genesis-mix-v0.1.0.yaml`](genesis-mix-v0.1.0.yaml) — smoke mix. Weights for external corpora are 0 until a checksum exists.
+
+Changing sources, weights, filters, or the artifact hash is a new version, not an edit in place.
