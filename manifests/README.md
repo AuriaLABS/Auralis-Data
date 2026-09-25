@@ -1,9 +1,6 @@
 # Manifests
 
-Versioned inventories of sources and mixes.
+- [`genesis-mix-v0.1.0.yaml`](genesis-mix-v0.1.0.yaml) — in-repo fixtures only
+- [`genesis-mix-v0.2.0.yaml`](genesis-mix-v0.2.0.yaml) — current: adds the Wikipedia ES smoke slice
 
-Current:
-
-- [`genesis-mix-v0.1.0.yaml`](genesis-mix-v0.1.0.yaml) — smoke mix. Weights for external corpora are 0 until a checksum exists.
-
-Changing sources, weights, filters, or the artifact hash is a new version, not an edit in place.
+Changing sources, weights, filters, or the artifact hash is a new version.
