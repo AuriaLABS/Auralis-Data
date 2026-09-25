@@ -1,12 +1,5 @@
 #!/usr/bin/env python3
-"""clean-es-v0.2.0 — stages 2–6 and exact dedup (8) of docs/cleaning.md.
-
-Standard library only. Reason codes stay stable when GlotLID or MinHash wrap this.
-
-Usage:
-  python3 scripts/clean_es.py samples/
-  python3 scripts/test_clean_es.py
-"""
+"""clean-es-v0.3.0 — stages 2–8 plus split assignment. Stdlib only."""
 
 from __future__ import annotations
 
@@ -19,7 +12,9 @@ import unicodedata
 from collections import Counter
 from pathlib import Path
 
-RECIPE = "clean-es-v0.2.0"
+from redact import assign_split, redact_pii
+
+RECIPE = "clean-es-v0.3.0"
 
 ES_STOP = frozenset(
     "de la que el en y a los se del las un por con no una su para es al lo como más pero sus le ha me si ya o este entre cuando muy sin sobre también hasta hay desde está mi porque esta son nos así".split()
@@ -33,49 +28,30 @@ CA_MARKERS = frozenset(
 GL_MARKERS = frozenset(
     "unha polos polas dunha neste nesta galego tamén despois".split()
 )
-
 BANNER_RES = [
     re.compile(p, re.IGNORECASE)
     for p in (
-        r"aceptar cookies",
-        r"acepto las cookies",
-        r"pol[ií]tica de cookies",
-        r"configurar cookies",
-        r"dos clic[ks]s?",
-        r"m[aá]s privacidad",
-        r"gestionar consentimiento",
-        r"necesario para el funcionamiento",
-        r"suscr[ií]bete",
-        r"newsletter",
-        r"iniciar sesi[oó]n",
-        r"crear cuenta",
-        r"a[nñ]adir al carrito",
-        r"finalizar compra",
-        r"gastos de env[ií]o",
-        r"cesta de la compra",
-        r"proceder al pago",
-        r"dejar un comentario",
-        r"escribe un comentario",
-        r"valoraci[oó]n",
-        r"saltar al contenido",
-        r"aviso legal",
+        r"aceptar cookies", r"acepto las cookies", r"pol[ií]tica de cookies",
+        r"configurar cookies", r"dos clic[ks]s?", r"m[aá]s privacidad",
+        r"gestionar consentimiento", r"necesario para el funcionamiento",
+        r"suscr[ií]bete", r"newsletter", r"iniciar sesi[oó]n", r"crear cuenta",
+        r"a[nñ]adir al carrito", r"finalizar compra", r"gastos de env[ií]o",
+        r"cesta de la compra", r"proceder al pago", r"dejar un comentario",
+        r"escribe un comentario", r"valoraci[oó]n", r"saltar al contenido", r"aviso legal",
     )
 ]
 URL_RE = re.compile(r"https?://\S+", re.IGNORECASE)
 WORD_RE = re.compile(r"\S+")
 CTRL_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f]")
 PUNCT_RE = re.compile(r"[^\wáéíóúüñÁÉÍÓÚÜÑ]+", re.UNICODE)
-
 GOPHER_TOP = ((2, 0.20), (3, 0.18), (4, 0.16))
 GOPHER_DUP = ((5, 0.15), (6, 0.14), (7, 0.13), (8, 0.12), (9, 0.11), (10, 0.10))
 
 
 def normalize(text: str) -> str:
-    text = unicodedata.normalize("NFC", text)
-    text = text.replace("\r\n", "\n").replace("\r", "\n")
+    text = unicodedata.normalize("NFC", text).replace("\r\n", "\n").replace("\r", "\n")
     text = CTRL_RE.sub("", text)
-    text = re.sub(r"\n{3,}", "\n\n", text)
-    return text.strip()
+    return re.sub(r"\n{3,}", "\n\n", text).strip()
 
 
 def words(text: str) -> list[str]:
@@ -131,71 +107,58 @@ def fast_reject(text: str, profile: str) -> str | None:
     wlo, whi = (2, 18) if profile == "books" else (3, 12)
     if not (wlo <= mean_len <= whi):
         return "wordlen"
-    alpha = sum(ch.isalpha() for ch in text) / max(len(text), 1)
-    if alpha < (0.55 if profile == "books" else 0.70):
+    if sum(ch.isalpha() for ch in text) / max(len(text), 1) < (0.55 if profile == "books" else 0.70):
         return "low_alpha"
-    digit = sum(ch.isdigit() for ch in text) / max(len(text), 1)
-    if digit > (0.30 if profile == "books" else 0.20):
+    if sum(ch.isdigit() for ch in text) / max(len(text), 1) > (0.30 if profile == "books" else 0.20):
         return "high_digit"
-    url_n = len(URL_RE.findall(text))
-    if n and url_n / n > (0.02 if profile == "books" else 0.05):
+    if n and len(URL_RE.findall(text)) / n > (0.02 if profile == "books" else 0.05):
         return "high_url"
     if text.count("\ufffd") > (5 if profile == "books" else 0):
         return "bad_ocr"
-    upper = sum(ch.isupper() for ch in letters) / len(letters)
-    if upper > (0.50 if profile == "books" else 0.40):
+    if sum(ch.isupper() for ch in letters) / len(letters) > (0.50 if profile == "books" else 0.40):
         return "screaming"
     if profile == "web" and len(text) >= 400:
         if not re.search(r"[áéíóúñÁÉÍÓÚÑ]", text) and not text.isupper():
             return "no_spanish_orthography"
-    low = [t.strip(".,;:¡!¿?\"").lower() for t in w]
-    if sum(t in ES_STOP for t in low) < 3:
+    if sum(t.strip(".,;:¡!¿?\"").lower() in ES_STOP for t in w) < 3:
         return "no_stopwords"
     return None
 
 
-def _ngrams(toks: list[str], n: int) -> list[tuple[str, ...]]:
-    if len(toks) < n:
-        return []
-    return [tuple(toks[i : i + n]) for i in range(len(toks) - n + 1)]
+def _ngrams(toks, n):
+    return [tuple(toks[i : i + n]) for i in range(len(toks) - n + 1)] if len(toks) >= n else []
 
 
-def _gram_char_weight(gram: tuple[str, ...]) -> int:
-    return sum(len(w) for w in gram) + max(len(gram) - 1, 0)
+def _w(gram):
+    return sum(len(x) for x in gram) + max(len(gram) - 1, 0)
 
 
 def repetition_reject(text: str) -> str | None:
     lines = [ln.strip() for ln in text.split("\n") if ln.strip()]
     if len(lines) >= 4:
         counts = Counter(lines)
-        dup_lines = sum(c for ln, c in counts.items() if c > 1)
-        if dup_lines / len(lines) > 0.30:
+        if sum(c for ln, c in counts.items() if c > 1) / len(lines) > 0.30:
             return "dup_line"
         total_c = sum(len(ln) for ln in lines)
         dup_c = sum(len(ln) * c for ln, c in counts.items() if c > 1)
         if total_c and dup_c / total_c > 0.20:
             return "dup_line"
-
     toks = tokens_norm(text)
     total_c = sum(len(t) for t in toks) + max(len(toks) - 1, 0)
-    if total_c == 0:
+    if not total_c:
         return None
     for n, thr in GOPHER_TOP:
         grams = _ngrams(toks, n)
-        if not grams:
-            continue
-        gram, cnt = Counter(grams).most_common(1)[0]
-        if cnt * _gram_char_weight(gram) / total_c > thr:
-            return "dup_ngram"
+        if grams:
+            gram, cnt = Counter(grams).most_common(1)[0]
+            if cnt * _w(gram) / total_c > thr:
+                return "dup_ngram"
     for n, thr in GOPHER_DUP:
         grams = _ngrams(toks, n)
         if not grams:
             continue
         counts = Counter(grams)
-        covered = 0
-        for g, cnt in counts.items():
-            if cnt > 1:
-                covered += (cnt - 1) * _gram_char_weight(g)
+        covered = sum((cnt - 1) * _w(g) for g, cnt in counts.items() if cnt > 1)
         if covered / total_c > thr:
             return "dup_ngram"
     return None
@@ -208,12 +171,11 @@ def doc_hash(text: str) -> str:
 
 def paragraphs(text: str) -> list[str]:
     parts = [p.strip() for p in re.split(r"\n\s*\n", text) if p.strip()]
-    return parts if parts else [text.strip()]
+    return parts or [text.strip()]
 
 
 def para_hash(text: str) -> str:
-    norm = PUNCT_RE.sub(" ", text.lower())
-    norm = re.sub(r"\s+", " ", norm).strip()
+    norm = re.sub(r"\s+", " ", PUNCT_RE.sub(" ", text.lower())).strip()
     return hashlib.sha256(norm.encode("utf-8")).hexdigest()
 
 
@@ -222,25 +184,22 @@ def clean_document(text: str, profile: str = "web") -> dict:
     text = normalize(text)
     if not text:
         return {"keep": False, "reason": "extract_empty", "text": "", "recipe": RECIPE}
-
     text, n_banner = strip_banners(text)
     if not text:
         return {"keep": False, "reason": "boilerplate", "text": "", "banners": n_banner, "recipe": RECIPE}
-
     reason = fast_reject(text, profile)
     if reason:
         return {"keep": False, "reason": reason, "text": text, "banners": n_banner, "recipe": RECIPE}
-
     label, scores = heuristic_lang(text)
     if label == "pt":
         return {"keep": False, "reason": "not_spanish", "lang": label, "scores": scores, "text": text, "recipe": RECIPE}
     if label in {"ca", "gl"} and scores[label] >= scores.get("es", 0) + 0.02:
         return {"keep": False, "reason": "lang_ambiguous", "lang": label, "scores": scores, "text": text, "recipe": RECIPE}
-
     reason = repetition_reject(text)
     if reason:
         return {"keep": False, "reason": reason, "lang": label, "text": text, "recipe": RECIPE}
-
+    text, pii_tags = redact_pii(text)
+    digest = doc_hash(text)
     return {
         "keep": True,
         "reason": "ok",
@@ -249,23 +208,22 @@ def clean_document(text: str, profile: str = "web") -> dict:
         "banners": n_banner,
         "n_words": len(words(text)),
         "text": text,
-        "doc_hash": doc_hash(text),
+        "pii": pii_tags,
+        "doc_hash": digest,
         "para_hashes": [para_hash(p) for p in paragraphs(text) if len(p) >= 40],
+        "split": assign_split(digest),
         "recipe": RECIPE,
         "input_chars": len(raw),
     }
 
 
 def apply_exact_dedup(records: list[dict]) -> list[dict]:
-    seen_docs: set[str] = set()
-    seen_paras: set[str] = set()
-    out = []
+    seen_docs, seen_paras, out = set(), set(), []
     for rec in records:
         if not rec.get("keep"):
             out.append(rec)
             continue
-        dh = rec["doc_hash"]
-        if dh in seen_docs:
+        if rec["doc_hash"] in seen_docs:
             rec = dict(rec)
             rec["keep"] = False
             rec["reason"] = "dup_doc"
@@ -278,20 +236,18 @@ def apply_exact_dedup(records: list[dict]) -> list[dict]:
             rec["reason"] = "dup_paragraph"
             out.append(rec)
             continue
-        seen_docs.add(dh)
+        seen_docs.add(rec["doc_hash"])
         seen_paras.update(phs)
         out.append(rec)
     return out
 
 
 def iter_inputs(paths: list[Path]) -> list[tuple[str, str]]:
-    out: list[tuple[str, str]] = []
+    out = []
     for p in paths:
         if p.is_dir():
             for f in sorted(p.rglob("*")):
-                if f.suffix.lower() in {".txt", ".md"} and f.is_file():
-                    if f.name.lower() == "readme.md":
-                        continue
+                if f.suffix.lower() in {".txt", ".md"} and f.is_file() and f.name.lower() != "readme.md":
                     out.append((str(f), f.read_text(encoding="utf-8", errors="replace")))
         elif p.is_file():
             out.append((str(p), p.read_text(encoding="utf-8", errors="replace")))
@@ -306,41 +262,33 @@ def main() -> int:
     ap.add_argument("--profile", choices=("web", "books"), default="web")
     ap.add_argument("--jsonl-out", type=Path)
     args = ap.parse_args()
-
     raw_recs = []
     for name, raw in iter_inputs(args.paths):
         rec = clean_document(raw, args.profile)
         rec["path"] = name
         raw_recs.append(rec)
     recs = apply_exact_dedup(raw_recs)
-
-    hist: Counter[str] = Counter()
-    kept = 0
+    hist, kept = Counter(), 0
     out_f = args.jsonl_out.open("w", encoding="utf-8") if args.jsonl_out else None
     try:
         for rec in recs:
             hist[rec["reason"]] += 1
-            if rec["keep"]:
-                kept += 1
-            print(f"{rec['reason']:24} {rec['path']}")
+            kept += int(rec["keep"])
+            print(f"{rec['reason']:24} {rec.get('split', '-'):12} {rec['path']}")
             if out_f and rec["keep"]:
-                out_f.write(
-                    json.dumps(
-                        {"id": rec["path"], "text": rec["text"], "recipe": RECIPE, "doc_hash": rec.get("doc_hash")},
-                        ensure_ascii=False,
-                    )
-                    + "\n"
-                )
+                out_f.write(json.dumps({
+                    "id": rec["path"], "text": rec["text"], "recipe": RECIPE,
+                    "doc_hash": rec.get("doc_hash"), "split": rec.get("split"),
+                    "pii": rec.get("pii") or [],
+                }, ensure_ascii=False) + "\n")
     finally:
         if out_f:
             out_f.close()
-
     total = sum(hist.values())
     print("---")
     print(f"recipe={RECIPE} profile={args.profile} docs={total} kept={kept}")
     for reason, n in hist.most_common():
-        pct = 100.0 * n / total if total else 0
-        print(f"  {reason:24} {n:4}  {pct:5.1f}%")
+        print(f"  {reason:24} {n:4}  {100.0 * n / total if total else 0:5.1f}%")
     return 0
 
 
