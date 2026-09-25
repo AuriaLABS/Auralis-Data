@@ -1,0 +1,69 @@
+name: genesis-mix
+version: 0.1.0
+recipe: clean-es-v0.3.0
+status: smoke
+notes: |
+  Closes the data-side Genesis loop without pulling external shards.
+  Training text is the in-repo samples that survive clean-es.
+  Accepted external sources are listed with weight 0 until a checksum exists.
+
+sources:
+  - id: samples-keep-prose
+    path: samples/keep_prose.txt
+    status: accepted
+    role: smoke
+    weight: 1.0
+    in_git: true
+  - id: samples-keep-pii
+    path: samples/keep_pii.txt
+    status: accepted
+    role: smoke
+    weight: 1.0
+    in_git: true
+    pii: redacted-by-clean-es
+
+  - id: pleias-spanish-pd-books
+    card: docs/sources/pleias-spanish-pd-books.md
+    status: accepted
+    role: pretrain
+    weight: 0.0
+    checksum: pending
+  - id: wikipedia-es
+    card: docs/sources/wikipedia-es.md
+    status: accepted
+    role: pretrain
+    weight: 0.0
+    checksum: pending
+  - id: fineweb2-spa-latn
+    card: docs/sources/fineweb2-spa-latn.md
+    status: candidate
+    role: pretrain
+    weight: 0.0
+    checksum: pending
+  - id: pleias-spanish-pd-newspapers
+    card: docs/sources/pleias-spanish-pd-newspapers.md
+    status: candidate
+    role: pretrain
+    weight: 0.0
+    checksum: pending
+  - id: cereal
+    card: docs/sources/cereal.md
+    status: quarantine
+    role: variety-labels
+    weight: 0.0
+  - id: escorpius
+    card: docs/sources/escorpius.md
+    status: rejected
+    role: none
+    weight: 0.0
+
+splits:
+  method: doc_hash[:8]
+  train: 0.90
+  validation: 0.05
+  test: 0.05
+
+artifact:
+  uri: pending
+  sha256: pending
+  format: jsonl
