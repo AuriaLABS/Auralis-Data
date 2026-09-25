@@ -1,16 +1,19 @@
 # Scripts
 
-## `clean_es.py`
+## `clean_es.py` + `redact.py`
 
-Recipe `clean-es-v0.2.0`. Stages 2–6 of [docs/cleaning.md](../docs/cleaning.md) plus exact document/paragraph dedup (stage 8, no MinHash yet).
+Recipe `clean-es-v0.3.0`. Stages 2–7 of [docs/cleaning.md](../docs/cleaning.md), exact document/paragraph dedup, and a hash split.
 
 ```bash
 python3 scripts/clean_es.py samples/
 python3 scripts/test_clean_es.py
 ```
 
-Reason codes: `ok`, `extract_empty`, `boilerplate`, `too_short`, `too_long`, `wordlen`, `low_alpha`, `high_digit`, `high_url`, `bad_ocr`, `screaming`, `no_spanish_orthography`, `no_stopwords`, `not_spanish`, `lang_ambiguous`, `dup_line`, `dup_ngram`, `dup_doc`, `dup_paragraph`.
+PII placeholders (document is kept): `<EMAIL>` `<IP>` `<IBAN>` `<PHONE>` `<ID>`.
+DNI/NIE are replaced only when the checksum letter is valid. Phones require `+34` and a 6xx/7xx mobile pattern.
 
-`--profile web` (default) or `books`. `--jsonl-out` writes kept documents only.
+Splits: first 8 hex digits of `doc_hash` → ~90% `train`, 5% `validation`, 5% `test`. The hash is computed **after** redaction so raw PII is not part of the id.
 
-Changing a threshold or adding a reason code bumps the recipe version.
+JSONL fields when `--jsonl-out` is set: `id`, `text`, `recipe`, `doc_hash`, `split`, `pii`.
+
+Still out: MinHash, GlotLID, Gopher toxicity classifiers.
