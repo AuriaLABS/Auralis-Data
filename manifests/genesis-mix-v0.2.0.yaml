@@ -1,0 +1,68 @@
+name: genesis-mix
+version: 0.2.0
+recipe: clean-es-v0.3.0
+status: smoke
+notes: |
+  Adds the first accepted-source slice: five truncated Spanish Wikipedia
+  articles from scripts/fetch_wikipedia_es_slice.py.
+  PleIAs parquet files start at ~139 MB; no book shard is pulled yet.
+
+sources:
+  - id: samples-keep-prose
+    path: samples/keep_prose.txt
+    status: accepted
+    role: smoke
+    weight: 1.0
+    in_git: true
+  - id: samples-keep-pii
+    path: samples/keep_pii.txt
+    status: accepted
+    role: smoke
+    weight: 1.0
+    in_git: true
+  - id: wikipedia-es-slice
+    card: docs/sources/wikipedia-es.md
+    path: samples/wikipedia_es/slice.jsonl
+    builder: scripts/fetch_wikipedia_es_slice.py
+    status: accepted
+    role: smoke
+    weight: 1.0
+    checksum: checksums/wikipedia-es-slice-v0.1.0.sha256
+    license: CC-BY-SA-4.0
+
+  - id: pleias-spanish-pd-books
+    card: docs/sources/pleias-spanish-pd-books.md
+    status: accepted
+    role: pretrain
+    weight: 0.0
+    checksum: pending
+    note: smallest parquet is ~139MB; streaming slice not wired yet
+  - id: fineweb2-spa-latn
+    card: docs/sources/fineweb2-spa-latn.md
+    status: candidate
+    role: pretrain
+    weight: 0.0
+  - id: pleias-spanish-pd-newspapers
+    card: docs/sources/pleias-spanish-pd-newspapers.md
+    status: candidate
+    role: pretrain
+    weight: 0.0
+  - id: cereal
+    card: docs/sources/cereal.md
+    status: quarantine
+    weight: 0.0
+  - id: escorpius
+    card: docs/sources/escorpius.md
+    status: rejected
+    weight: 0.0
+
+splits:
+  method: doc_hash[:8]
+  train: 0.90
+  validation: 0.05
+  test: 0.05
+
+artifact:
+  uri: pending
+  sha256: pending
+  format: jsonl
