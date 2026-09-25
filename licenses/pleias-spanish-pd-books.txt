@@ -1,0 +1,10 @@
+Source: https://huggingface.co/datasets/PleIAs/Spanish-PD-Books
+Also used as the license note for pleias-spanish-pd-newspapers.
+
+PleIAs states that the collection is in the public domain in all regions,
+using the EU rule that the author has been dead for more than 70 years,
+and citing Article 14 of the 2019 EU Copyright Directive for faithful
+reproductions of public-domain works.
+
+This file is a provenance note, not a substitute for the upstream card.
+Auralis-Data does not claim copyright on those texts.
